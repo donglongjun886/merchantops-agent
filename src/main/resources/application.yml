@@ -24,6 +24,16 @@ mybatis-plus:
   global-config:
     banner: false
 
+# Actuator：健康检查默认探测数据源（db indicator）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
 # ===== LLM 配置（OpenAI-compatible API，默认 DeepSeek）=====
 merchantops:
   llm:

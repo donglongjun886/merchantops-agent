@@ -29,6 +29,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Actuator：健康检查 / 指标（标准能力，避免手写） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- MyBatis-Plus（Spring Boot 3 专用 starter） -->
         <dependency>
             <groupId>com.baomidou</groupId>
