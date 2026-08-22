@@ -39,8 +39,8 @@ merchantops:
   llm:
     base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
     api-key: ${DEEPSEEK_API_KEY:}
-    # 模型名按 DeepSeek 官方 API 配置；V4 系列请填实际可用模型名（如 deepseek-chat）
-    model: ${DEEPSEEK_MODEL:deepseek-chat}
+    # DeepSeek V4 Flash（如控制台显示的模型 ID 不同，用 DEEPSEEK_MODEL 环境变量覆盖）
+    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
     temperature: 0.3
     max-tokens: 2048
     # Agent Loop 限制
