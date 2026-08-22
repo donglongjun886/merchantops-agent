@@ -1,0 +1,34 @@
+# MerchantOps Agent 本地依赖服务（MySQL 8）
+#
+# 用法：docker compose up -d
+# 连接信息与 application.yml 默认值对齐：
+#   host: localhost  port: 3306  db: merchantops
+#   user: root       password: root
+#
+# 注意：表结构和 seed 数据由 Spring Boot 启动时执行
+# src/main/resources/db/schema.sql + data.sql 自动初始化，无需手动导入。
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: merchantops-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: merchantops
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql-data:
