@@ -51,20 +51,57 @@ docker compose ps           # 等待 healthy
 
 ### 4. 配置 DeepSeek API Key
 
+推荐方式（本地敏感配置，已被 .gitignore 排除，不会提交到 GitHub）：
+
+```bash
+# 创建 src/main/resources/application-local.yml：
+#   merchantops:
+#     llm:
+#       api-key: sk-xxxx
+# 然后带 local profile 启动：
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+也可以直接用环境变量：
+
 ```bash
 export DEEPSEEK_API_KEY=sk-xxxx
-# 可选：export DEEPSEEK_MODEL=deepseek-chat
+export DEEPSEEK_MODEL=deepseek-v4-flash   # 默认已是
 ```
 
 ## 启动应用
 
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 # 或
-mvn package && java -jar target/merchantops-agent-0.1.0-SNAPSHOT.jar
+mvn package && java -jar target/merchantops-agent-0.1.0-SNAPSHOT.jar --spring.profiles.active=local
 ```
 
-启动成功标志：`Started MerchantOpsAgentApplication`，且 `merchant_order / product / task` 等 5 张表已建好并灌入 seed 数据。
+启动成功标志：`Started MerchantOpsAgentApplication`。
+
+### 试一下 Agent
+
+```bash
+curl -X POST http://localhost:8080/api/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"帮我查一下商户 M1001 的信息"}'
+```
+
+## Agent Loop 核心流程
+
+```text
+用户输入
+ ↓
+[循环] 组装全量消息链 → 调 LLM（附带可用工具声明）
+ ↓
+LLM 返回 tool_calls ？
+ ├─ 否 → 拿到最终答案，结束
+ └─ 是 → 逐个执行工具，结果回填消息链 → 回到 [循环]
+```
+
+- AgentLoop 不写死具体工具，通过 ToolRegistry 动态查找
+- 工具不存在/执行异常 → 错误回填给 LLM 纠错，不中断 Agent
+- maxSteps 兜底防死循环（`merchantops.llm.max-steps`，默认 10）
 
 ## 目录结构
 
