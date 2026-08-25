@@ -9,8 +9,7 @@ import com.merchantops.agent.tool.ToolCall;
 import com.merchantops.agent.tool.ToolNotFoundException;
 import com.merchantops.agent.tool.ToolRegistry;
 import com.merchantops.agent.tool.ToolResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -33,10 +32,9 @@ import java.util.List;
  * 按名动态查找；执行失败（工具不存在/异常）也回填给 LLM 让它纠错，
  * 而不是中断整个 Agent。maxSteps 兜底防止死循环。</p>
  */
+@Slf4j
 @Component
 public class AgentLoop {
-
-    private static final Logger log = LoggerFactory.getLogger(AgentLoop.class);
 
     private static final String SYSTEM_PROMPT = """
             你是 MerchantOps 运营助手，帮助运营人员查询商户与任务信息。
