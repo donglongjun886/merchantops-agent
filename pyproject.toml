@@ -1,0 +1,21 @@
+[project]
+name = "merchantops-agent"
+version = "0.1.0"
+description = "MerchantOps Agent - LLM + Tool Calling 企业业务 Agent 实践"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "openai>=1.40",
+    "pydantic-settings>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
