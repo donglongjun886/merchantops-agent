@@ -77,10 +77,15 @@ merchantops-agent/
 ## 测试
 
 ```bash
+# 单元测试（FakeLLM，不消耗 API，默认执行）
 .venv/bin/python -m pytest -v
+
+# 真实 DeepSeek 集成测试（需 .env 配置 DEEPSEEK_API_KEY，消耗少量费用）
+.venv/bin/python -m pytest -m integration -v
 ```
 
-覆盖 6 个场景：直接答案 / 一次 Tool Call / 连续两次 Tool Call / 工具不存在 / 超过最大迭代 / 工具执行异常。
+单元测试覆盖 7 个场景：直接答案 / 一次 Tool Call / 连续两次 Tool Call / 工具不存在 / 超过最大迭代 / 工具参数非法 / 工具执行异常。
+集成测试覆盖：无工具真实对话 / 真实链路 getMerchant → getTask → Final Answer。
 
 ## API
 

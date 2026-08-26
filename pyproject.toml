@@ -22,3 +22,8 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# 真实 API 集成测试默认不跑（消耗费用），显式 -m integration 才执行
+markers = [
+    "integration: 真实 DeepSeek API 集成测试（需 DEEPSEEK_API_KEY，默认跳过）",
+]
+addopts = "-m 'not integration'"

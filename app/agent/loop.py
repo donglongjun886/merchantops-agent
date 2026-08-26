@@ -27,7 +27,7 @@ from ..observability import get_tracer
 from .context import AgentContext, Message
 from .llm import LlmClient
 from .registry import ToolRegistry
-from .tool import ToolCall, ToolNotFound, ToolResult
+from .tool import ToolArgumentError, ToolCall, ToolNotFound, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,27 @@ class AgentLoop:
                 logger.info("[AgentLoop] step=%s/%s messages=%s", step, self._max_steps, ctx.size())
 
                 # 1. 调 LLM：传入全量消息链 + 当前可用工具声明（span 覆盖耗时）
-                with _tracer.start_as_current_span("llm.chat") as llm_span:
-                    llm_span.set_attribute("llm.step", step)
-                    llm_span.set_attribute("llm.message_count", ctx.size())
-                    llm_span.set_attribute("llm.tool_count", len(self._tool_registry.all()))
-                    response = self._llm_client.chat(ctx.messages(), self._tool_registry.all())
-                    llm_span.set_attribute("llm.has_tool_calls", response.has_tool_calls())
+                try:
+                    with _tracer.start_as_current_span("llm.chat") as llm_span:
+                        llm_span.set_attribute("llm.step", step)
+                        llm_span.set_attribute("llm.message_count", ctx.size())
+                        llm_span.set_attribute("llm.tool_count", len(self._tool_registry.all()))
+                        response = self._llm_client.chat(ctx.messages(), self._tool_registry.all())
+                        llm_span.set_attribute("llm.has_tool_calls", response.has_tool_calls())
+                except Exception as exc:
+                    # LLM API 调用失败（网络/鉴权/限流等）：不崩溃，回填错误后结束
+                    logger.error("[AgentLoop] LLM 调用失败: %s", exc)
+                    error_answer = f"抱歉，调用语言模型失败，请稍后重试。（{type(exc).__name__}）"
+                    ctx.add_assistant_message(error_answer, None)
+                    root_span.set_attribute("agent.answer", error_answer)
+                    root_span.set_attribute("agent.steps", step)
+                    root_span.set_attribute("agent.llm_error", str(exc))
+                    return AgentResult(
+                        answer=error_answer,
+                        steps=step,
+                        max_steps_reached=False,
+                        messages=ctx.messages(),
+                    )
 
                 # 2. 没有 tool_calls → 这就是最终答案
                 if not response.has_tool_calls():
@@ -118,6 +133,16 @@ class AgentLoop:
                     tool_call_id=call.id,
                     name=call.name,
                     content=f'{{"error":"工具不存在: {call.name}"}}',
+                    is_error=True,
+                )
+            except ToolArgumentError as exc:
+                logger.warning("工具参数非法: %s %s", call.name, exc)
+                span.set_attribute("tool.error", f"参数非法: {exc}")
+                span.set_attribute("tool.is_error", True)
+                return ToolResult(
+                    tool_call_id=call.id,
+                    name=call.name,
+                    content=f'{{"error":"参数非法: {exc}"}}',
                     is_error=True,
                 )
             except Exception as exc:

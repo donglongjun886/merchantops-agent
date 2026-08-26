@@ -11,6 +11,10 @@ class ToolNotFound(Exception):
         super().__init__(f"工具不存在: {name}")
 
 
+class ToolArgumentError(Exception):
+    """工具参数非法异常（JSON 解析失败 / 缺少必填参数等）。AgentLoop 捕获后回填给 LLM。"""
+
+
 @dataclass
 class ToolCall:
     """一次工具调用请求（由 LLM 在 assistant 消息中发起）。"""

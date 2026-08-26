@@ -5,7 +5,8 @@
 3. 连续两次 Tool Call
 4. 工具不存在（错误回填，Agent 不中断）
 5. 超过最大迭代次数（兜底终止）
-6. 工具执行抛异常（错误回填）
+6. 工具参数非法（错误回填）
+7. 工具执行抛异常（错误回填）
 """
 
 import pytest
@@ -120,14 +121,35 @@ def test_max_steps_reached_loop_stops(registry):
     assert "3" in result.answer       # 兜底文案提到轮数
 
 
-# ---------- 场景 6：工具执行抛异常 ----------
+# ---------- 场景 6：工具参数非法（JSON 解析失败） ----------
 
-def test_tool_execution_exception_error_fed_back_to_llm(registry):
+def test_tool_argument_error_fed_back_to_llm(registry):
     llm = FakeLlmClient.with_responses(
         LlmResponse(tool_calls=[ToolCall(id="call_1", name="getMerchant", arguments="invalid-json")]),
         LlmResponse(content="工具执行出错了"),
     )
     result = make_loop(llm, registry).run("触发异常")
+
+    assert result.answer == "工具执行出错了"
+    second = llm.request_at(1)
+    error_msg = next(m for m in second if m.role == "tool")
+    assert "参数非法" in error_msg.content      # 精确分类：参数非法，而非笼统的"执行异常"
+
+
+# ---------- 场景 7：工具执行抛异常 ----------
+
+def test_tool_execution_exception_error_fed_back_to_llm(registry):
+    # getTask 参数合法但内部抛运行时异常 → 归为"工具执行异常"
+    class BoomTool(GetTaskTool):
+        def execute(self, arguments_json: str) -> str:
+            raise RuntimeError("内部故障")
+
+    boom_registry = ToolRegistry([GetMerchantTool(), BoomTool()])
+    llm = FakeLlmClient.with_responses(
+        LlmResponse(tool_calls=[ToolCall(id="call_1", name="getTask", arguments='{"taskId":"T1"}')]),
+        LlmResponse(content="工具执行出错了"),
+    )
+    result = make_loop(llm, boom_registry).run("触发异常")
 
     assert result.answer == "工具执行出错了"
     second = llm.request_at(1)

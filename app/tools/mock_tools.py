@@ -2,7 +2,7 @@
 
 import json
 
-from ..agent.tool import Tool
+from ..agent.tool import Tool, ToolArgumentError
 
 
 class GetMerchantTool(Tool):
@@ -25,8 +25,10 @@ class GetMerchantTool(Tool):
         )
 
     def execute(self, arguments_json: str) -> str:
-        args = json.loads(arguments_json)
-        merchant_id = args.get("merchantId", "")
+        args = self._parse_arguments(arguments_json)
+        merchant_id = args.get("merchantId")
+        if not merchant_id:
+            raise ToolArgumentError("缺少必填参数 merchantId")
         return json.dumps(
             {
                 "merchantId": merchant_id,
@@ -36,6 +38,16 @@ class GetMerchantTool(Tool):
             },
             ensure_ascii=False,
         )
+
+    @staticmethod
+    def _parse_arguments(arguments_json: str) -> dict:
+        try:
+            args = json.loads(arguments_json)
+        except json.JSONDecodeError as exc:
+            raise ToolArgumentError(f"参数不是合法 JSON: {exc}") from exc
+        if not isinstance(args, dict):
+            raise ToolArgumentError(f"参数应为 JSON 对象，实际为 {type(args).__name__}")
+        return args
 
 
 class GetTaskTool(Tool):
@@ -58,8 +70,10 @@ class GetTaskTool(Tool):
         )
 
     def execute(self, arguments_json: str) -> str:
-        args = json.loads(arguments_json)
-        task_id = args.get("taskId", "")
+        args = self._parse_arguments(arguments_json)
+        task_id = args.get("taskId")
+        if not task_id:
+            raise ToolArgumentError("缺少必填参数 taskId")
         return json.dumps(
             {
                 "taskId": task_id,
@@ -69,3 +83,13 @@ class GetTaskTool(Tool):
             },
             ensure_ascii=False,
         )
+
+    @staticmethod
+    def _parse_arguments(arguments_json: str) -> dict:
+        try:
+            args = json.loads(arguments_json)
+        except json.JSONDecodeError as exc:
+            raise ToolArgumentError(f"参数不是合法 JSON: {exc}") from exc
+        if not isinstance(args, dict):
+            raise ToolArgumentError(f"参数应为 JSON 对象，实际为 {type(args).__name__}")
+        return args
