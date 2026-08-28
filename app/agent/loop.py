@@ -16,6 +16,8 @@ max_steps 兜底防止死循环。
   agent.chat（根 span，整个对话）
    ├── llm.chat（每轮 LLM 调用）
    └── tool.execute（每次工具执行，挂在对应的 llm.chat 下）
+
+SYSTEM_PROMPT 中的商家清单与 app/db/seed.py 保持一致。
 """
 
 import logging
@@ -33,7 +35,11 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是 MerchantOps 运营助手，帮助运营人员查询商户与任务信息。
 当用户的问题需要数据支撑时，调用可用的工具获取数据后再回答。
-只回答与商户运营相关的问题。"""
+只回答与商户运营相关的问题。
+
+【可查询的数据范围】
+商家（ID：名称）：1 星辰数码旗舰店 / 2 悦动运动专营店 / 3 拾光服饰 / 4 味蕾食品
+查询商家相关问题时优先使用商家 ID；任务（task）和订单（merchant_order）均关联商家 ID。"""
 
 _tracer = get_tracer()
 
