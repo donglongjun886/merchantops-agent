@@ -11,6 +11,8 @@ dependencies = [
     "opentelemetry-api>=1.27",
     "opentelemetry-sdk>=1.27",
     "opentelemetry-exporter-otlp>=1.27",
+    "sqlalchemy>=2.0",
+    "pymysql",
 ]
 
 [project.optional-dependencies]

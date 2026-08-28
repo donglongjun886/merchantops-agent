@@ -1,0 +1,24 @@
+# M1 数据层基础设施：MySQL 8.0 单实例
+# 用法：docker compose up -d （本机 3306 端口）
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: merchantops-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: merchantops
+      MYSQL_USER: merchantops
+      MYSQL_PASSWORD: merchantops
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  mysql_data:

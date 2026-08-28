@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
     llm_max_tokens: int = 2048
     llm_max_steps: int = 10
+    # 同步驱动 PyMySQL，连 docker-compose 起的 MySQL 8.0
+    database_url: str = "mysql+pymysql://merchantops:merchantops@127.0.0.1:3306/merchantops?charset=utf8mb4"
 
 
 settings = Settings()
