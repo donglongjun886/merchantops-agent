@@ -16,7 +16,9 @@ import pytest
 from app.agent.llm import DeepSeekClient
 from app.agent.loop import AgentLoop
 from app.agent.registry import ToolRegistry
-from app.tools.mock_tools import GetMerchantTool, GetTaskTool
+from app.tools.merchant_tool import GetMerchantTool
+from app.tools.order_tool import GetOrderTool
+from app.tools.task_tool import GetTaskTool
 
 pytestmark = [
     pytest.mark.integration,  # 默认不跑，-m integration 才执行
@@ -49,9 +51,9 @@ def test_llm_returns_answer(client):
 
 
 def test_real_tool_calling_merchant_then_task():
-    """场景 2：真实链路——用户问商户+任务，DeepSeek 应连续调用两个工具后给最终答案。
+    """场景 2：真实链路——用户问商家+任务完成度，DeepSeek 应连续调用工具后给最终答案。
 
-    期望：getMerchant → getTask → Final Answer
+    期望：getMerchant(按ID查商家) → getTask(按商家查任务列表) → Final Answer
     """
     from app.config import settings
 
@@ -60,10 +62,10 @@ def test_real_tool_calling_merchant_then_task():
         base_url=os.environ.get("DEEPSEEK_BASE_URL", settings.deepseek_base_url),
         model=os.environ.get("DEEPSEEK_MODEL", settings.deepseek_model),
     )
-    registry = ToolRegistry([GetMerchantTool(), GetTaskTool()])
+    registry = ToolRegistry([GetMerchantTool(), GetTaskTool(), GetOrderTool()])
     loop = AgentLoop(llm, registry, max_steps=5)
 
-    result = loop.run("分析商家 10001 的任务 T001 的情况")
+    result = loop.run("先查询商家 1 的基本信息，再分析它的 GMV 任务完成度")
 
     assert not result.max_steps_reached
     assert result.steps >= 2          # 至少两轮：工具调用 + 最终答案

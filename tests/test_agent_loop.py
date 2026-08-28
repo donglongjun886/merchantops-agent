@@ -15,7 +15,8 @@ from app.agent.llm import LlmResponse
 from app.agent.loop import AgentLoop
 from app.agent.registry import ToolRegistry
 from app.agent.tool import ToolCall
-from app.tools.mock_tools import GetMerchantTool, GetTaskTool
+from app.tools.merchant_tool import GetMerchantTool
+from app.tools.task_tool import GetTaskTool
 
 from .fake_llm import FakeLlmClient
 
@@ -43,24 +44,24 @@ def test_direct_answer_no_tool_call(registry):
     assert llm.request_count == 1
 
 
-# ---------- 场景 2：一次 Tool Call ----------
+# ---------- 场景 2：一次 Tool Call（工具查真库，数据回填给 LLM） ----------
 
 def test_single_tool_call_merchant_lookup(registry):
     llm = FakeLlmClient.with_responses(
-        LlmResponse(tool_calls=[ToolCall(id="call_1", name="getMerchant", arguments='{"merchantId":"M1001"}')]),
-        LlmResponse(content="商户 M1001 是金牌商户，状态正常"),
+        LlmResponse(tool_calls=[ToolCall(id="call_1", name="getMerchant", arguments='{"merchantId": 1}')]),
+        LlmResponse(content="商户 1 查询完成"),
     )
-    result = make_loop(llm, registry).run("查一下商户 M1001")
+    result = make_loop(llm, registry).run("查一下商户 1 的信息")
 
-    assert result.answer == "商户 M1001 是金牌商户，状态正常"
+    assert result.answer == "商户 1 查询完成"
     assert result.steps == 2          # 两轮 LLM
     assert llm.request_count == 2
 
-    # 第二轮请求必须包含 tool 结果消息（回填成功）
+    # 第二轮请求必须包含 tool 结果消息（真库数据回填成功）
     second = llm.request_at(1)
     tool_msg = next(m for m in second if m.role == "tool")
-    assert "M1001" in tool_msg.content
-    assert "金牌" in tool_msg.content
+    assert "星辰数码旗舰店" in tool_msg.content   # seed 里 id=1 的商家
+    assert "ACTIVE" in tool_msg.content
 
 
 # ---------- 场景 3：连续两次 Tool Call ----------

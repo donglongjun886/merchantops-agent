@@ -7,7 +7,9 @@ from ..agent.llm import DeepSeekClient
 from ..agent.loop import AgentLoop
 from ..agent.registry import ToolRegistry
 from ..config import settings
-from ..tools.mock_tools import GetMerchantTool, GetTaskTool
+from ..tools.merchant_tool import GetMerchantTool
+from ..tools.order_tool import GetOrderTool
+from ..tools.task_tool import GetTaskTool
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
