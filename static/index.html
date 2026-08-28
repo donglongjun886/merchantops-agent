@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MerchantOps Agent</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,111 +14,130 @@
     }
     header {
       background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      color: #fff; padding: 16px 24px; display: flex; align-items: baseline; gap: 12px;
+      color: #fff; padding: 14px 24px; display: flex; align-items: baseline; gap: 12px;
     }
     header h1 { font-size: 20px; font-weight: 600; }
     header span { font-size: 13px; opacity: .85; }
-    main {
-      flex: 1; overflow-y: auto; padding: 20px 24px; display: flex;
-      flex-direction: column; gap: 12px; max-width: 860px; width: 100%; margin: 0 auto;
+    /* 搜索区：固定在顶部，输入框最显眼 */
+    .search-wrap {
+      background: #fff; border-bottom: 1px solid #e5e7eb;
+      padding: 18px 24px 14px; box-shadow: 0 2px 6px rgba(0, 0, 0, .04);
     }
+    .search-inner { max-width: 860px; margin: 0 auto; display: flex; gap: 10px; }
+    .search-inner input {
+      flex: 1; padding: 13px 18px; border: 1px solid #d1d5db; border-radius: 24px;
+      font-size: 15px; outline: none; background: #f9fafb;
+    }
+    .search-inner input:focus { border-color: #4f46e5; background: #fff; box-shadow: 0 0 0 3px rgba(79, 70, 229, .15); }
+    .search-inner button {
+      background: #4f46e5; color: #fff; border: none; border-radius: 24px;
+      padding: 0 26px; font-size: 15px; cursor: pointer; white-space: nowrap;
+    }
+    .search-inner button:hover { background: #4338ca; }
+    .search-inner button:disabled { opacity: .6; cursor: not-allowed; }
+    .suggestions { max-width: 860px; margin: 12px auto 0; display: flex; gap: 8px; flex-wrap: wrap; }
+    .suggestions button {
+      border: 1px solid #d1d5db; background: #f9fafb; color: #374151;
+      padding: 5px 14px; border-radius: 999px; font-size: 13px; cursor: pointer;
+    }
+    .suggestions button:hover { border-color: #4f46e5; color: #4f46e5; }
+    /* 对话区：搜索框下方滚动 */
+    .chat {
+      flex: 1; overflow-y: auto; padding: 20px 24px;
+      max-width: 860px; width: 100%; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .welcome { text-align: center; color: #9ca3af; margin-top: 70px; font-size: 14px; line-height: 2; }
     .msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; line-height: 1.6; font-size: 14px; }
     .msg.user { align-self: flex-end; background: #4f46e5; color: #fff; white-space: pre-wrap; }
-    .msg.assistant { align-self: flex-start; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .msg.assistant { align-self: flex-start; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
     .msg.assistant table { border-collapse: collapse; margin: 6px 0; font-size: 13px; }
     .msg.assistant th, .msg.assistant td { border: 1px solid #e5e7eb; padding: 4px 10px; text-align: left; }
     .msg.assistant th { background: #f9fafb; }
     .msg.assistant code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
     .msg.assistant pre { background: #1f2937; color: #f9fafb; padding: 10px; border-radius: 8px; overflow-x: auto; }
     .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 { font-size: 15px; margin: 8px 0 4px; }
-    footer { border-top: 1px solid #e5e7eb; background: #fff; padding: 12px 24px; }
-    .suggestions { display: flex; gap: 8px; flex-wrap: wrap; max-width: 860px; margin: 0 auto 10px; }
-    .suggestions button {
-      border: 1px solid #d1d5db; background: #f9fafb; color: #374151;
-      padding: 5px 12px; border-radius: 999px; font-size: 13px; cursor: pointer;
-    }
-    .suggestions button:hover { border-color: #4f46e5; color: #4f46e5; }
-    form { display: flex; gap: 10px; max-width: 860px; margin: 0 auto; }
-    input {
-      flex: 1; padding: 11px 14px; border: 1px solid #d1d5db; border-radius: 10px;
-      font-size: 14px; outline: none;
-    }
-    input:focus { border-color: #4f46e5; }
-    button[type="submit"] {
-      background: #4f46e5; color: #fff; border: none; padding: 0 22px;
-      border-radius: 10px; font-size: 14px; cursor: pointer;
-    }
-    button[type="submit"]:hover { background: #4338ca; }
-    button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; }
-    .typing { color: #9ca3af; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>MerchantOps Agent</h1>
-    <span>自然语言查询商家经营数据</span>
-  </header>
+  <div id="app">
+    <header>
+      <h1>MerchantOps Agent</h1>
+      <span>自然语言查询商家经营数据</span>
+    </header>
 
-  <main id="chat"></main>
-
-  <footer>
-    <div class="suggestions">
-      <button data-q="查询商家 1 的基本信息">查商家信息</button>
-      <button data-q="分析商家 1 的 GMV 任务完成度">GMV 完成度</button>
-      <button data-q="查询订单 XD20250801001 的信息">查订单</button>
+    <!-- 搜索框置顶：查询工具的入口在最显眼位置 -->
+    <div class="search-wrap">
+      <div class="search-inner">
+        <input v-model="question" @keyup.enter="send" placeholder="输入问题，如：分析商家 1 的 GMV 任务完成度" autocomplete="off">
+        <button @click="send" :disabled="sending">{{ sending ? '思考中…' : '发送' }}</button>
+      </div>
+      <div class="suggestions">
+        <button v-for="s in suggestions" :key="s" @click="ask(s)">{{ s }}</button>
+      </div>
     </div>
-    <form id="chat-form">
-      <input id="input" placeholder="输入问题，如：商家 1 有哪些任务，完成度如何？" autocomplete="off">
-      <button type="submit" id="send">发送</button>
-    </form>
-  </footer>
+
+    <main class="chat">
+      <div v-if="!messages.length" class="welcome">
+        👋 输入问题或点上面的快捷提问<br>
+        例如：商家 1 有哪些任务，完成度如何？
+      </div>
+      <div v-for="(m, i) in messages" :key="i" :class="'msg ' + m.role" v-html="m.html"></div>
+    </main>
+  </div>
 
   <script>
-    const chat = document.getElementById('chat');
-    const form = document.getElementById('chat-form');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    function addMessage(role, html) {
-      const div = document.createElement('div');
-      div.className = 'msg ' + role;
-      div.innerHTML = html;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-      return div;
-    }
-
-    async function send(text) {
-      if (!text.trim() || sendBtn.disabled) return;
-      addMessage('user', escapeHtml(text));
-      input.value = '';
-      sendBtn.disabled = true;
-      const loading = addMessage('assistant', '<span class="typing">思考中…</span>');
-      try {
-        const res = await fetch('/api/agent/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text }),
-        });
-        const data = await res.json();
-        loading.innerHTML = marked.parse(data.answer);
-      } catch (err) {
-        loading.innerHTML = '请求失败：' + escapeHtml(String(err));
-      }
-      sendBtn.disabled = false;
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    form.addEventListener('submit', (e) => { e.preventDefault(); send(input.value); });
-    document.querySelectorAll('.suggestions button').forEach((btn) => {
-      btn.addEventListener('click', () => send(btn.dataset.q));
-    });
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          question: '',
+          sending: false,
+          suggestions: [
+            '查询商家 1 的基本信息',
+            '分析商家 1 的 GMV 任务完成度',
+            '查询订单 XD20250801001 的信息',
+          ],
+          messages: [],
+        };
+      },
+      methods: {
+        escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        },
+        ask(q) {
+          this.question = q;
+          this.send();
+        },
+        async send() {
+          const text = this.question.trim();
+          if (!text || this.sending) return;
+          this.messages.push({ role: 'user', html: this.escapeHtml(text) });
+          this.question = '';
+          this.sending = true;
+          const loading = { role: 'assistant', html: '<span style="color:#9ca3af">思考中…</span>' };
+          this.messages.push(loading);
+          try {
+            const res = await fetch('/api/agent/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: text }),
+            });
+            const data = await res.json();
+            loading.html = marked.parse(data.answer);
+          } catch (err) {
+            loading.html = '请求失败：' + this.escapeHtml(String(err));
+          }
+          this.sending = false;
+          this.$nextTick(() => {
+            const chat = document.querySelector('.chat');
+            chat.scrollTop = chat.scrollHeight;
+          });
+        },
+      },
+    }).mount('#app');
   </script>
 </body>
 </html>
