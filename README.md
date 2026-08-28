@@ -110,15 +110,15 @@ merchantops-agent/
 ## 里程碑
 
 ```text
-M0  最小 Agent Runtime      ← 当前
+M0  最小 Agent Runtime
 M1  MerchantOps 业务 Agent
 M2  工程化 Agent
 M3  Framework 对比与增强
 M4  Pi 源码研究 + 最终重构
 ```
 
-- [x] **M0 最小 Agent Runtime**：AgentLoop / LlmClient / AgentContext / Tool / ToolRegistry / ToolCall / ToolResult，FakeLLM 单测 + 真实 DeepSeek Tool Calling + OpenTelemetry 三层 span
-- [ ] **M1 MerchantOps 业务 Agent**：接入真实业务数据（订单/商品/任务），多工具协同跨域查询
-- [ ] **M2 工程化 Agent**：Context Engineering（多轮记忆/截断）、会话保持、评估
-- [ ] **M3 Framework 对比与增强**：与主流框架（LangGraph 等）对比，借鉴增强
-- [ ] **M4 Pi 源码研究 + 最终重构**：以 Pi Agent Runtime 为参考做最终设计收敛
+- **M0 最小 Agent Runtime**
+- **M1 MerchantOps 业务 Agent**：接入真实业务数据（订单/商品/任务），多工具协同跨域查询
+- **M2 工程化 Agent**：Context Engineering（多轮记忆/截断）、会话保持、评估
+- **M3 Framework 对比与增强**：与主流框架（LangGraph 等）对比，借鉴增强
+- **M4 Pi 源码研究 + 最终重构**：以 Pi Agent Runtime 为参考做最终设计收敛
