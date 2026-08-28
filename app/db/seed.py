@@ -1,68 +1,116 @@
-"""建表 + 灌 seed 数据（可重复执行：先 drop 再 create，然后插入）。"""
+"""建表 + 灌 seed 数据（可重复执行：先 drop 再 create，然后插入）。
+
+四张新表：merchant / task / task_progress / merchant_order。
+旧表 product / order_item 会被 drop，属于预期的整体替换。
+
+数据自洽性说明：
+- 星辰数码旗舰店（IN_PROGRESS 的 GMV 任务）的 task_progress.current_value = 48295.00，
+  恰好等于该商家全部订单 amount 之和（21999+15998+1299+8999 = 48295.00），
+  后续 Agent 查"GMV 完成度"能对上账。
+- 悦动运动专营店同理：current_value = 7200.00 = 全部订单金额之和（1800+2698+902+1800）。
+"""
 
 from datetime import datetime
 
+from sqlalchemy import text
+
 from app.db.base import Base
-from app.db.models import MerchantOrder, OrderItem, Product, Task
+from app.db.models import Merchant, MerchantOrder, Task, TaskProgress
 from app.db.session import SessionLocal, engine
 
 
 def seed() -> None:
     # 幂等：删表重建
+    # 旧 schema 遗留表 product / order_item 不在新 metadata 里，drop_all 不会删；
+    # 且 order_item 外键仍指向旧 merchant_order，不先清掉会挡 drop_all（整体替换的预期动作）
+    with engine.begin() as conn:
+        conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        conn.execute(text("DROP TABLE IF EXISTS order_item"))
+        conn.execute(text("DROP TABLE IF EXISTS product"))
+        conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
-    products = [
-        Product(sku="SKU1001", name="iPhone 15 Pro 256G", category="手机", price="9999.00", stock=50, status="ACTIVE"),
-        Product(sku="SKU1002", name="华为 FreeBuds Pro 3 降噪耳机", category="耳机", price="1499.00", stock=120, status="ACTIVE"),
-        Product(sku="SKU1003", name="安克 10000mAh 充电宝", category="充电宝", price="129.00", stock=300, status="ACTIVE"),
-        Product(sku="SKU1004", name="耐克 Air Max 90 运动鞋", category="鞋", price="899.00", stock=80, status="ACTIVE"),
-        Product(sku="SKU1005", name="优衣库 摇粒绒外套", category="衣服", price="199.00", stock=200, status="ACTIVE"),
-        Product(sku="SKU1006", name="小米 67W 氮化镓充电器", category="配件", price="79.00", stock=500, status="ACTIVE"),
-    ]
-
-    orders = [
-        MerchantOrder(order_no="1001", status="PAID", buyer_name="张三", buyer_phone="13800000001", total_amount="11577.00", created_at=datetime(2025, 8, 25, 10, 30)),
-        MerchantOrder(order_no="1002", status="SHIPPED", buyer_name="李四", buyer_phone="13800000002", total_amount="1997.00", created_at=datetime(2025, 8, 25, 14, 5)),
-        MerchantOrder(order_no="1003", status="RISK_REVIEW", buyer_name="王五", buyer_phone="13800000003", total_amount="3385.00", created_at=datetime(2025, 8, 26, 9, 20)),
-        MerchantOrder(order_no="1004", status="PENDING", buyer_name="赵六", buyer_phone="13800000004", total_amount="803.00", created_at=datetime(2025, 8, 26, 20, 45)),
-    ]
-
-    # 明细金额与 total_amount 严格一致：sum(subtotal) == total_amount
-    items = [
-        OrderItem(order_no="1001", product_sku="SKU1001", quantity=1, unit_price="9999.00", subtotal="9999.00"),
-        OrderItem(order_no="1001", product_sku="SKU1002", quantity=1, unit_price="1499.00", subtotal="1499.00"),
-        OrderItem(order_no="1001", product_sku="SKU1006", quantity=1, unit_price="79.00", subtotal="79.00"),
-        OrderItem(order_no="1002", product_sku="SKU1004", quantity=2, unit_price="899.00", subtotal="1798.00"),
-        OrderItem(order_no="1002", product_sku="SKU1005", quantity=1, unit_price="199.00", subtotal="199.00"),
-        OrderItem(order_no="1003", product_sku="SKU1002", quantity=2, unit_price="1499.00", subtotal="2998.00"),
-        OrderItem(order_no="1003", product_sku="SKU1003", quantity=3, unit_price="129.00", subtotal="387.00"),
-        OrderItem(order_no="1004", product_sku="SKU1003", quantity=5, unit_price="129.00", subtotal="645.00"),
-        OrderItem(order_no="1004", product_sku="SKU1006", quantity=2, unit_price="79.00", subtotal="158.00"),
+    merchants = [
+        Merchant(name="星辰数码旗舰店", status="ACTIVE", created_at=datetime(2025, 1, 15, 9, 0), updated_at=datetime(2025, 8, 20, 10, 0)),
+        Merchant(name="悦动运动专营店", status="ACTIVE", created_at=datetime(2025, 2, 10, 9, 0), updated_at=datetime(2025, 8, 18, 10, 0)),
+        Merchant(name="拾光服饰", status="INACTIVE", created_at=datetime(2025, 3, 1, 9, 0), updated_at=datetime(2025, 7, 31, 18, 0)),
+        Merchant(name="味蕾食品", status="ACTIVE", created_at=datetime(2025, 4, 20, 9, 0), updated_at=datetime(2025, 8, 15, 10, 0)),
     ]
 
     tasks = [
-        Task(task_no="T1001", title="订单 1001 风控人工复核", related_order_no="1001", status="PENDING", owner="风控组", priority="URGENT", updated_at=datetime(2025, 8, 25, 11, 0)),
-        Task(task_no="T1002", title="订单 1003 高风险交易人工审核", related_order_no="1003", status="IN_PROGRESS", owner="风控组", priority="HIGH", updated_at=datetime(2025, 8, 26, 10, 0)),
-        Task(task_no="T1003", title="处理退款申请：订单 1004 买家取消", related_order_no="1004", status="PENDING", owner="客服组", priority="MEDIUM", updated_at=datetime(2025, 8, 26, 21, 0)),
-        Task(task_no="T1004", title="核对 1002 订单发货物流单号", related_order_no="1002", status="COMPLETED", owner="仓储组", priority="LOW", updated_at=datetime(2025, 8, 25, 18, 30)),
-        Task(task_no="T1005", title="每周库存盘点（手机类目）", related_order_no=None, status="PENDING", owner="运营组", priority="MEDIUM", updated_at=datetime(2025, 8, 27, 9, 0)),
+        Task(merchant_id=1, name="本月GMV目标", metric_type="GMV", target_value="80000.00",
+             start_time=datetime(2025, 8, 1, 0, 0), end_time=datetime(2025, 8, 31, 23, 59),
+             status="IN_PROGRESS", created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 27, 9, 0)),
+        Task(merchant_id=1, name="本月订单量目标", metric_type="ORDER_COUNT", target_value="300",
+             start_time=datetime(2025, 8, 1, 0, 0), end_time=datetime(2025, 8, 31, 23, 59),
+             status="COMPLETED", created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 25, 18, 0)),
+        Task(merchant_id=2, name="本月GMV目标", metric_type="GMV", target_value="20000.00",
+             start_time=datetime(2025, 8, 1, 0, 0), end_time=datetime(2025, 8, 31, 23, 59),
+             status="IN_PROGRESS", created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 27, 10, 30)),
+        Task(merchant_id=3, name="上月GMV目标", metric_type="GMV", target_value="50000.00",
+             start_time=datetime(2025, 7, 1, 0, 0), end_time=datetime(2025, 7, 31, 23, 59),
+             status="COMPLETED", created_at=datetime(2025, 7, 1, 9, 0), updated_at=datetime(2025, 8, 1, 10, 0)),
+        Task(merchant_id=4, name="本月订单量目标", metric_type="ORDER_COUNT", target_value="200",
+             start_time=datetime(2025, 8, 1, 0, 0), end_time=datetime(2025, 8, 31, 23, 59),
+             status="PENDING", created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 27, 11, 0)),
+        Task(merchant_id=4, name="上月GMV目标", metric_type="GMV", target_value="60000.00",
+             start_time=datetime(2025, 7, 1, 0, 0), end_time=datetime(2025, 7, 31, 23, 59),
+             status="COMPLETED", created_at=datetime(2025, 7, 1, 9, 0), updated_at=datetime(2025, 8, 1, 9, 30)),
+    ]
+
+    # current_value 与订单金额之和自洽（见文件头注释）
+    task_progress = [
+        TaskProgress(task_id=1, current_value="48295.00", progress="60.37", status="IN_PROGRESS",
+                     completed_at=None, created_at=datetime(2025, 8, 5, 9, 0), updated_at=datetime(2025, 8, 27, 9, 0)),
+        TaskProgress(task_id=2, current_value="300.00", progress="100.00", status="COMPLETED",
+                     completed_at=datetime(2025, 8, 25, 18, 0), created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 25, 18, 0)),
+        TaskProgress(task_id=3, current_value="7200.00", progress="36.00", status="IN_PROGRESS",
+                     completed_at=None, created_at=datetime(2025, 8, 5, 9, 0), updated_at=datetime(2025, 8, 27, 10, 30)),
+        TaskProgress(task_id=4, current_value="50000.00", progress="100.00", status="COMPLETED",
+                     completed_at=datetime(2025, 8, 1, 10, 0), created_at=datetime(2025, 7, 5, 9, 0), updated_at=datetime(2025, 8, 1, 10, 0)),
+        TaskProgress(task_id=5, current_value="0.00", progress="0.00", status="IN_PROGRESS",
+                     completed_at=None, created_at=datetime(2025, 8, 1, 9, 0), updated_at=datetime(2025, 8, 27, 11, 0)),
+        TaskProgress(task_id=6, current_value="60000.00", progress="100.00", status="COMPLETED",
+                     completed_at=datetime(2025, 8, 1, 9, 30), created_at=datetime(2025, 7, 5, 9, 0), updated_at=datetime(2025, 8, 1, 9, 30)),
+    ]
+
+    orders = [
+        # 星辰数码旗舰店（合计 48295.00，对得上 task 1 的 current_value）
+        MerchantOrder(order_id="XD20250801001", merchant_id=1, amount="21999.00", status="PAID", created_at=datetime(2025, 8, 3, 10, 21)),
+        MerchantOrder(order_id="XD20250801002", merchant_id=1, amount="15998.00", status="SHIPPED", created_at=datetime(2025, 8, 11, 14, 5)),
+        MerchantOrder(order_id="XD20250801003", merchant_id=1, amount="1299.00", status="RISK_REVIEW", created_at=datetime(2025, 8, 19, 23, 47)),
+        MerchantOrder(order_id="XD20250801004", merchant_id=1, amount="8999.00", status="COMPLETED", created_at=datetime(2025, 8, 26, 9, 12)),
+        # 悦动运动专营店（合计 7200.00，对得上 task 3 的 current_value）
+        MerchantOrder(order_id="YD20250802001", merchant_id=2, amount="1800.00", status="PAID", created_at=datetime(2025, 8, 4, 9, 30)),
+        MerchantOrder(order_id="YD20250802002", merchant_id=2, amount="2698.00", status="SHIPPED", created_at=datetime(2025, 8, 15, 16, 20)),
+        MerchantOrder(order_id="YD20250802003", merchant_id=2, amount="902.00", status="REFUNDED", created_at=datetime(2025, 8, 20, 11, 8)),
+        MerchantOrder(order_id="YD20250802004", merchant_id=2, amount="1800.00", status="COMPLETED", created_at=datetime(2025, 8, 26, 15, 44)),
+        # 拾光服饰（上月订单）
+        MerchantOrder(order_id="SG20250703001", merchant_id=3, amount="596.00", status="COMPLETED", created_at=datetime(2025, 7, 6, 12, 0)),
+        MerchantOrder(order_id="SG20250703002", merchant_id=3, amount="397.00", status="REFUNDED", created_at=datetime(2025, 7, 15, 19, 30)),
+        MerchantOrder(order_id="SG20250703003", merchant_id=3, amount="795.00", status="CANCELLED", created_at=datetime(2025, 7, 21, 8, 55)),
+        # 味蕾食品
+        MerchantOrder(order_id="WL20250804001", merchant_id=4, amount="258.00", status="PAID", created_at=datetime(2025, 8, 5, 20, 15)),
+        MerchantOrder(order_id="WL20250804002", merchant_id=4, amount="516.00", status="COMPLETED", created_at=datetime(2025, 8, 14, 12, 40)),
+        MerchantOrder(order_id="WL20250804003", merchant_id=4, amount="129.00", status="PENDING", created_at=datetime(2025, 8, 25, 22, 31)),
+        MerchantOrder(order_id="WL20250804004", merchant_id=4, amount="387.00", status="COMPLETED", created_at=datetime(2025, 8, 26, 18, 2)),
     ]
 
     with SessionLocal() as session:
-        session.add_all(products)
-        session.add_all(orders)
-        # 先落商品和订单，order_item 的外键依赖它们（ORM 没定义 relationship，需手动控制插入顺序）
-        session.flush()
-        session.add_all(items)
+        session.add_all(merchants)
+        session.flush()  # 先落商家拿 id
         session.add_all(tasks)
+        session.flush()  # 再落任务拿 id
+        session.add_all(task_progress)
+        session.add_all(orders)
         session.commit()
 
         counts = {
-            "product": session.query(Product).count(),
-            "merchant_order": session.query(MerchantOrder).count(),
-            "order_item": session.query(OrderItem).count(),
+            "merchant": session.query(Merchant).count(),
             "task": session.query(Task).count(),
+            "task_progress": session.query(TaskProgress).count(),
+            "merchant_order": session.query(MerchantOrder).count(),
         }
         for table, count in counts.items():
             print(f"seed: {table} 插入 {count} 行")

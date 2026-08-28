@@ -1,32 +1,81 @@
-"""4 个业务模型：商品 / 订单 / 订单明细 / 任务。
+"""4 个业务模型：商家 / 经营任务 / 任务进度 / 商家订单。
+
+表关系：
+- merchant 1:N task（task.merchant_id -> merchant.id）
+- merchant 1:N merchant_order（merchant_order.merchant_id -> merchant.id）
+- task 1:N task_progress（task_progress.task_id -> task.id）
 
 约定：
-- 状态用普通字符串列，不用 SQLAlchemy Enum（简单、好查、好改）
-- 外键只建在 order_item（order_no -> merchant_order.order_no、product_sku -> product.sku）
-- task.related_order_no 只建普通索引，不强制外键
+- 状态、指标类型用普通字符串列，不用 SQLAlchemy Enum（简单、好查、好改）
+- created_at 用 server_default=func.now()；updated_at、completed_at 可空、手动维护（不用事件监听）
+- merchant_order 没有 updated_at，其他三张有
+- 2.0 风格 Mapped + mapped_column；不建 relationship、不用 async、不用 alembic
 """
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
-class Product(Base):
-    """商品。"""
+class Merchant(Base):
+    """商家。"""
 
-    __tablename__ = "product"
+    __tablename__ = "merchant"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    sku: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    category: Mapped[str | None] = mapped_column(String(64))
-    price: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    stock: Mapped[int | None] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(16), server_default="ACTIVE")
+    # 状态：ACTIVE / INACTIVE
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # updated_at 手动维护，不用事件监听
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Task(Base):
+    """经营任务。"""
+
+    __tablename__ = "task"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    merchant_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("merchant.id"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # 指标类型：GMV / ORDER_COUNT
+    metric_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    target_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    start_time: Mapped[datetime | None] = mapped_column(DateTime)
+    end_time: Mapped[datetime | None] = mapped_column(DateTime)
+    # 状态：PENDING / IN_PROGRESS / COMPLETED / CANCELLED
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # updated_at 手动维护，不用事件监听
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class TaskProgress(Base):
+    """任务进度。"""
+
+    __tablename__ = "task_progress"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("task.id"), index=True, nullable=False
+    )
+    current_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # 完成百分比 0-100.00
+    progress: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    # 状态：IN_PROGRESS / COMPLETED
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 仅任务完成时有值
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # updated_at 手动维护，不用事件监听
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class MerchantOrder(Base):
@@ -35,52 +84,12 @@ class MerchantOrder(Base):
     __tablename__ = "merchant_order"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_no: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
-    # 枚举值：PENDING/PAID/SHIPPED/COMPLETED/CANCELLED/REFUNDED/RISK_REVIEW
-    status: Mapped[str] = mapped_column(String(16))
-    buyer_name: Mapped[str | None] = mapped_column(String(64))
-    buyer_phone: Mapped[str | None] = mapped_column(String(20))
-    total_amount: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
-class OrderItem(Base):
-    """订单明细（1 个订单 N 条明细）。"""
-
-    __tablename__ = "order_item"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    order_no: Mapped[str] = mapped_column(
-        String(32),
-        ForeignKey("merchant_order.order_no"),
-        index=True,
-        nullable=False,
+    # 业务订单号
+    order_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    merchant_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("merchant.id"), index=True, nullable=False
     )
-    product_sku: Mapped[str] = mapped_column(
-        String(32),
-        ForeignKey("product.sku"),
-        index=True,
-        nullable=False,
-    )
-    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    unit_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    subtotal: Mapped[float | None] = mapped_column(Numeric(10, 2))
-
-
-class Task(Base):
-    """任务（含跨域关联：related_order_no 指向订单号）。"""
-
-    __tablename__ = "task"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    task_no: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
-    title: Mapped[str] = mapped_column(String(128), nullable=False)
-    related_order_no: Mapped[str | None] = mapped_column(String(32), index=True)
-    # 枚举值：PENDING/IN_PROGRESS/COMPLETED/CANCELLED
-    status: Mapped[str] = mapped_column(String(16))
-    owner: Mapped[str | None] = mapped_column(String(64))
-    # 枚举值：LOW/MEDIUM/HIGH/URGENT
-    priority: Mapped[str | None] = mapped_column(String(8))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # 状态：PENDING/PAID/SHIPPED/COMPLETED/CANCELLED/REFUNDED/RISK_REVIEW（贴风控场景）
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    # updated_at 手动维护，不用事件监听
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
